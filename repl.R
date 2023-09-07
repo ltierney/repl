@@ -32,8 +32,7 @@
 ##     flags -- for now a fixed pair of prompts is used.
 ##
 ##     readline/input editing isn't quite right on at least some
-##     platforms (tty in particular).  On AQUA do_addhistory doesn't
-##     seem to do anything.
+##     platforms (tty in particular).
 ##
 ## Color support in xterms provided by Deepayan Sarkar. This should
 ## probably be made configurable in some way.
@@ -91,7 +90,7 @@ readOne <- function(prompt = "-->", cprompt = "--+ ",
          ## **** work properly but I'm not sure what.  This seems to
          ## **** do the trick on AQUA and I think on Rgui.  It doesn't
          ## **** seem useful for Tk.
-         if (nzchar(line)) .Internal(addhistory(line))
+         if (nzchar(line)) addHistory(line)
          lines <- c(lines, line)
          if (inputComplete(lines)) {
              if (color) cat(outcol)
@@ -101,6 +100,25 @@ readOne <- function(prompt = "-->", cprompt = "--+ ",
      }
 }
 
+addHistory <- function(line) {
+    ## **** this used to work but no longer does
+    ## .Internal(addhistory(line))
+}
+
+setLastValue <- function(value) {
+    ## **** this needs an internal implementation to avoid messing uf the REFCNT on value
+    ## **** also won't work if the binding doesn't exist yet, so use tryCatch for now
+    tryCatch({
+        unlockBinding(".Last.value", baseenv())
+        assign(".Last.value", value, baseenv())
+        lockBinding(".Last.value", baseenv())
+    }, error = function(e) NULL)
+}
+
+setLastWarning <- function(w) {
+    ## **** this needs an internal implementation to bypass env/binding locking
+    ## assign("last.warning", new, baseenv())
+}
 
 ## This should provide a query option, like q(save = "default").  For
 ## such an option the 'c' choice should probably invoke an "abort"
@@ -136,7 +154,7 @@ repl <- function(prompt = "--> ", cprompt = "--+ ", greeting = TRUE,
             if (warningCount < 50) {
                 if (warningCount > 0)
                     new <- c(last.warning, new)
-                assign("last.warning", new, baseenv())
+                setLastWarning(new)
                 warningCount <<- warningCount + 1
             }
             invokeRestart("muffleWarning") ## to skip internal handling
@@ -192,12 +210,12 @@ repl <- function(prompt = "--> ", cprompt = "--+ ", greeting = TRUE,
         ## more expressions.
         for (expr in exprList) {
             warningCount <<- 0
-            assignInNamespace(".Last.expression", expr, "base")
-            result <- .Internal(eval.with.vis(expr, .GlobalEnv, baseenv()))
-            assignInNamespace(".Last.value", result$value, "base")
+            result <- withVisible(eval(expr, .GlobalEnv))
+            setLastValue(result$value)
             if (result$visible)
                 print(result$value)
             printWarnings()
+            result$value <- NULL ## to drop the reference count
             ## **** add top level handlers here (or outside the for ()?)
         }
     }
