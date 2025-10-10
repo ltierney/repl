@@ -106,8 +106,10 @@ addHistory <- function(line) {
 }
 
 setLastValue <- function(value) {
-    ## **** this needs an internal implementation to avoid messing uf the REFCNT on value
-    ## **** also won't work if the binding doesn't exist yet, so use tryCatch for now
+    ## **** This needs an internal implementation to avoid messing up
+    ## **** the REFCNT on value.
+    ## **** Also won't work if the binding doesn't exist yet, so use
+    ## **** tryCatch for now.
     tryCatch({
         unlockBinding(".Last.value", baseenv())
         assign(".Last.value", value, baseenv())
@@ -126,7 +128,8 @@ setLastWarning <- function(w) {
 quit <- function(status = 0) invokeRestart("done", status)
 
 repl <- function(prompt = "--> ", cprompt = "--+ ", greeting = TRUE,
-                 color = (Sys.getenv("TERM") == "xterm")) {
+                 color = (Sys.getenv("TERM") == "xterm"),
+                 envir = .GlobalEnv) {
     ## The default error handler goes to the first "abort" or
     ## "browser" restart on the stack so we don't need a handler here
     ## at this time; eventually it would be useful to move a lot of
@@ -195,7 +198,7 @@ repl <- function(prompt = "--> ", cprompt = "--+ ", greeting = TRUE,
         }
     }
     
-    repl1 <- function() {
+    repl1 <- function(envir) {
         ## Look up the warn option at the beginning of each top level
         ## iteration.
         warn <<- getOption("warn")
@@ -210,7 +213,7 @@ repl <- function(prompt = "--> ", cprompt = "--+ ", greeting = TRUE,
         ## more expressions.
         for (expr in exprList) {
             warningCount <<- 0
-            result <- withVisible(eval(expr, .GlobalEnv))
+            result <- withVisible(eval(expr, envir))
             setLastValue(result$value)
             if (result$visible)
                 print(result$value)
@@ -237,7 +240,7 @@ repl <- function(prompt = "--> ", cprompt = "--+ ", greeting = TRUE,
     ## restart, called "done", that is used by the exit function
     ## quit().
     withRestarts(repeat
-                 withCallingHandlers(withRestarts(repl1(),
+                 withCallingHandlers(withRestarts(repl1(envir),
                                                   abort = function() NULL),
                                      warning = warningHandler),
                  done = function(status) status)
